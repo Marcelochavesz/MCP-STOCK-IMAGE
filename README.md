@@ -1,47 +1,46 @@
-# MCP Stock Image
+# MCP Stock Media
 
-Servidor MCP que busca imagens no **Pexels** e **Unsplash**, baixa em alta resolução e organiza em pastas por busca.
+Servidor MCP global para buscar e baixar **imagens e vídeos** de bancos gratuitos (**Pexels, Unsplash, Pixabay**), organizados por **canal → projeto → palavra-chave**.
+
+## Fluxo
+1. Você escreve o roteiro com o Claude.
+2. Peça: "tire as palavras-chave de cada cena em inglês e baixe imagens e vídeos horizontais para o canal X, vídeo Y".
+3. O Claude chama `download_media` e os arquivos caem em:
+
+```
+~/stock-media/<canal>/<projeto>/<palavra-chave>/
+   01_video_pexels_123.mp4
+   02_image_unsplash_abc.jpg
+   manifest.json          (autor, link, fonte, duração)
+~/stock-media/<canal>/<projeto>/manifest.json   (índice geral)
+```
 
 ## Ferramentas
-- `search_images` — busca e mostra resultados (sem baixar).
-- `download_images` — busca, baixa e salva em `DOWNLOAD_DIR/<busca>/` com `manifest.json` (autor, link, fonte).
+- `search_media` — busca com preview, sem baixar.
+- `download_media` — várias palavras-chave de uma vez; `type` = image | video | both; `orientation` = landscape (16:9) / portrait (Shorts); `channel` e `project` definem as pastas.
 
-## Chaves de API (gratuitas)
-- Pexels: https://www.pexels.com/api/ → `PEXELS_API_KEY`
-- Unsplash: https://unsplash.com/developers → `UNSPLASH_ACCESS_KEY`
+| Banco | Imagens | Vídeos |
+|---|---|---|
+| Pexels | sim | sim |
+| Pixabay | sim | sim |
+| Unsplash | sim | não |
 
-Basta uma das duas; as buscas usam as que estiverem configuradas.
+## Chaves de API (todas gratuitas, use as que quiser)
+- `PEXELS_API_KEY` — https://www.pexels.com/api/
+- `UNSPLASH_ACCESS_KEY` — https://unsplash.com/developers
+- `PIXABAY_API_KEY` — https://pixabay.com/api/docs/
+- `DOWNLOAD_DIR` (opcional, padrão `~/stock-media`)
 
-## Instalação
+## Instalação global (todos os projetos)
 ```bash
-git clone https://github.com/marcelochavesz/mcp-stock-image && cd mcp-stock-image
-npm install
+git clone https://github.com/marcelochavesz/mcp-stock-image ~/mcp-stock-image
+cd ~/mcp-stock-image && git checkout claude/vibrant-faraday-2sv01e && npm install
+
+claude mcp add stock-media --scope user \
+  -e PEXELS_API_KEY=... -e UNSPLASH_ACCESS_KEY=... -e PIXABAY_API_KEY=... \
+  -e DOWNLOAD_DIR=~/stock-media \
+  -- node ~/mcp-stock-image/src/index.js
 ```
+`--scope user` deixa o MCP disponível em qualquer pasta/projeto. No Claude Desktop, use o mesmo comando/args/env no `claude_desktop_config.json`.
 
-### Claude Code
-```bash
-claude mcp add stock-image \
-  -e PEXELS_API_KEY=sua_chave -e UNSPLASH_ACCESS_KEY=sua_chave \
-  -e DOWNLOAD_DIR=~/stock-images \
-  -- node /caminho/para/mcp-stock-image/src/index.js
-```
-
-### Claude Desktop (`claude_desktop_config.json`)
-```json
-{
-  "mcpServers": {
-    "stock-image": {
-      "command": "node",
-      "args": ["/caminho/para/mcp-stock-image/src/index.js"],
-      "env": { "PEXELS_API_KEY": "...", "UNSPLASH_ACCESS_KEY": "...", "DOWNLOAD_DIR": "~/stock-images" }
-    }
-  }
-}
-```
-
-## Exemplo de uso
-> "Baixe 8 imagens horizontais de skyline de cidade à noite."
-
-Resultado: `~/stock-images/skyline-de-cidade-a-noite/01_pexels_123.jpg …` + `manifest.json`.
-
-Respeite as licenças: Pexels e Unsplash permitem uso comercial, mas confira os termos e credite quando possível.
+Licenças: os três bancos permitem uso comercial, mas confira os termos de cada um.
