@@ -1,0 +1,18 @@
+{
+  "name": "mcp-stock-image",
+  "version": "1.0.0",
+  "description": "MCP server that searches and downloads stock images from Pexels and Unsplash into organized folders",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "mcp-stock-image": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^4.6.5"
+  }
+}
