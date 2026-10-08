@@ -66,9 +66,13 @@ const providers = {
       downloadUrl: x.urls.full, previewUrl: x.urls.small, trackUrl: x.links.download_location,
     }));
   },
-  "pixabay:image": async (q, n, o) => {
+  "pixabay:image": async (q, n, o, opts = {}) => {
     need(PIXABAY_KEY, "PIXABAY_API_KEY");
-    const p = new URLSearchParams({ key: PIXABAY_KEY, q, per_page: String(Math.max(3, n)) });
+    const p = new URLSearchParams({
+      key: PIXABAY_KEY, q, per_page: String(Math.max(3, n)),
+      image_type: opts.realistic ? "photo" : "all", order: opts.order || "popular", safesearch: "true",
+    });
+    if (opts.minWidth) p.set("min_width", String(opts.minWidth));
     if (o) p.set("orientation", o === "landscape" ? "horizontal" : o === "portrait" ? "vertical" : "all");
     const d = await getJson(`https://pixabay.com/api/?${p}`);
     return d.hits.slice(0, n).map((x) => ({
@@ -77,12 +81,18 @@ const providers = {
       downloadUrl: x.largeImageURL, previewUrl: x.webformatURL,
     }));
   },
-  "pixabay:video": async (q, n) => {
+  "pixabay:video": async (q, n, o, opts = {}) => {
     need(PIXABAY_KEY, "PIXABAY_API_KEY");
-    const p = new URLSearchParams({ key: PIXABAY_KEY, q, per_page: String(Math.max(3, n)) });
+    const p = new URLSearchParams({
+      key: PIXABAY_KEY, q, per_page: String(Math.max(3, n)),
+      video_type: opts.realistic ? "film" : "all", order: opts.order || "popular", safesearch: "true",
+    });
+    if (opts.minWidth) p.set("min_width", String(opts.minWidth));
     const d = await getJson(`https://pixabay.com/api/videos/?${p}`);
     return d.hits.slice(0, n).map((x) => {
-      const v = x.videos.large?.url ? x.videos.large : x.videos.medium;
+      // maior versão até Full HD (evita arquivos 4K enormes); se não houver, a menor disponível
+      const opts2 = ["large", "medium", "small", "tiny"].map((k) => x.videos[k]).filter((v) => v?.url);
+      const v = opts2.filter((f) => f.width <= 1920).sort((a, b) => b.width - a.width)[0] || opts2[opts2.length - 1];
       return {
         type: "video", source: "pixabay", id: String(x.id), description: x.tags,
         width: v.width, height: v.height, duration: x.duration, author: x.user, pageUrl: x.pageURL,
@@ -103,7 +113,7 @@ function plan(types, sources) {
   return kinds.flatMap((k) => srcs.map((s) => `${s}:${k}`)).filter((key) => providers[key]);
 }
 
-async function search(query, types, sources, count, orientation) {
+async function search(query, types, sources, count, orientation, opts = {}) {
   const keys = plan(types, sources);
   const errors = [];
   if (!keys.length) {
@@ -114,7 +124,7 @@ async function search(query, types, sources, count, orientation) {
   const perType = {};
   for (const k of keys) perType[k.split(":")[1]] = (perType[k.split(":")[1]] || 0) + 1;
   const settled = await Promise.allSettled(
-    keys.map((k) => providers[k](query, Math.ceil(count / perType[k.split(":")[1]]), orientation))
+    keys.map((k) => providers[k](query, Math.ceil(count / perType[k.split(":")[1]]), orientation, opts))
   );
   const lists = [];
   settled.forEach((r, i) => (r.status === "fulfilled" ? lists.push(r.value) : errors.push(`${keys[i]}: ${r.reason.message}`)));
@@ -152,14 +162,19 @@ const common = {
     .describe("Bancos a usar. Padrão: todos com chave configurada. Unsplash só tem imagens"),
   orientation: z.enum(["landscape", "portrait", "squarish"]).optional()
     .describe("landscape = horizontal (YouTube 16:9); portrait = vertical (Shorts)"),
+  realistic: z.boolean().default(true)
+    .describe("true = só filmagens/fotos reais (exclui animações, ilustrações e vetores). Padrão: true"),
+  min_width: z.number().int().min(0).max(3840).default(1920)
+    .describe("Largura mínima em pixels (1920 = Full HD). Use 0 para não filtrar"),
+  order: z.enum(["popular", "latest"]).default("popular").describe("Ordem dos resultados"),
 };
 
 server.tool(
   "search_media",
   "Busca imagens e/ou vídeos de banco (Pexels, Unsplash, Pixabay) e mostra resultados com preview, sem baixar. Use termos em inglês para melhores resultados.",
   { query: z.string().min(1), ...common, count: z.number().int().min(1).max(30).default(8).describe("Quantidade por tipo") },
-  async ({ query, type, sources, orientation, count }) => {
-    const { results, errors } = await search(query, type, sources, count, orientation);
+  async ({ query, type, sources, orientation, realistic, min_width, order, count }) => {
+    const { results, errors } = await search(query, type, sources, count, orientation, { realistic, minWidth: min_width, order });
     return text({ total: results.length, errors, results });
   }
 );
@@ -175,14 +190,14 @@ server.tool(
     channel: z.string().optional().describe("Nome do canal do YouTube (vira pasta)"),
     project: z.string().optional().describe("Nome do vídeo/projeto (vira subpasta)"),
   },
-  async ({ keywords, type, sources, orientation, count_per_keyword, channel, project }) => {
+  async ({ keywords, type, sources, orientation, realistic, min_width, order, count_per_keyword, channel, project }) => {
     const root = path.join(DOWNLOAD_DIR, ...[channel, project].filter(Boolean).map(slug));
     await fs.mkdir(root, { recursive: true });
     const summary = [];
     const manifest = {};
     const errors = [];
     for (const kw of keywords) {
-      const { results, errors: errs } = await search(kw, type, sources, count_per_keyword, orientation);
+      const { results, errors: errs } = await search(kw, type, sources, count_per_keyword, orientation, { realistic, minWidth: min_width, order });
       errors.push(...errs.map((e) => `[${kw}] ${e}`));
       const dir = path.join(root, slug(kw));
       await fs.mkdir(dir, { recursive: true });

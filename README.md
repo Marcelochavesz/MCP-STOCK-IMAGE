@@ -16,7 +16,7 @@ Servidor MCP global para buscar e baixar **imagens e vídeos** de bancos gratuit
 ```
 
 ## Ferramentas
-- `search_media` — busca com preview, sem baixar.
+- `search_media` — busca com preview, sem baixar. Filtros: `realistic` (padrão: só filmagem/foto real), `min_width` (padrão 1920), `order` (popular/latest).
 - `download_media` — várias palavras-chave de uma vez; `type` = image | video | both; `orientation` = landscape (16:9) / portrait (Shorts); `channel` e `project` definem as pastas.
 
 | Banco | Imagens | Vídeos |
